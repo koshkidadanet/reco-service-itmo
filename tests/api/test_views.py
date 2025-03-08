@@ -9,9 +9,10 @@ GET_RECO_PATH = "/reco/{model_name}/{user_id}"
 
 def test_health(
     client: TestClient,
+    service_config: ServiceConfig,
 ) -> None:
     with client:
-        response = client.get("/health")
+        response = client.get("/health", headers={"Authorization": f"Bearer {service_config.auth_token}"})
     assert response.status_code == HTTPStatus.OK
 
 
@@ -21,8 +22,9 @@ def test_get_reco_success(
 ) -> None:
     user_id = 123
     path = GET_RECO_PATH.format(model_name="some_model", user_id=user_id)
+    headers = {"Authorization": f"Bearer {service_config.auth_token}"}
     with client:
-        response = client.get(path)
+        response = client.get(path, headers=headers)
     assert response.status_code == HTTPStatus.OK
     response_json = response.json()
     assert response_json["user_id"] == user_id
@@ -32,10 +34,30 @@ def test_get_reco_success(
 
 def test_get_reco_for_unknown_user(
     client: TestClient,
+    service_config: ServiceConfig,
 ) -> None:
     user_id = 10**10
     path = GET_RECO_PATH.format(model_name="some_model", user_id=user_id)
+    headers = {"Authorization": f"Bearer {service_config.auth_token}"}
     with client:
-        response = client.get(path)
+        response = client.get(path, headers=headers)
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()["errors"][0]["error_key"] == "user_not_found"
+
+
+def test_missing_auth(
+    client: TestClient,
+) -> None:
+    with client:
+        response = client.get("/health")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+def test_invalid_auth(
+    client: TestClient,
+    service_config: ServiceConfig,
+) -> None:
+    headers = {"Authorization": "Bearer invalid-token"}
+    with client:
+        response = client.get("/health", headers=headers)
+    assert response.status_code == HTTPStatus.UNAUTHORIZED

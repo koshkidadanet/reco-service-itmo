@@ -42,11 +42,11 @@ async def get_reco(
 
     k_recs = request.app.state.k_recs
     app_logger.info(f"k_recs: {k_recs}")
-    
-    if model_name == 'model_range':
+
+    if model_name == "model_range":
         reco = list(range(k_recs))
     else:
-        reco = list(range(10, k_recs+10))
+        reco = list(range(10, k_recs + 10))
     return RecoResponse(user_id=user_id, items=reco)
 
 
