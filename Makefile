@@ -9,6 +9,7 @@ CONTAINER_NAME := reco_service
 # Prepare
 
 .venv:
+	poetry env use python3.9
 	poetry install --no-root
 	poetry check
 

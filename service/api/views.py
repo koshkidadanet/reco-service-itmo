@@ -36,12 +36,17 @@ async def get_reco(
     app_logger.info(f"Request for model: {model_name}, user_id: {user_id}")
 
     # Write your code here
-
+    # Тут надо проверять, что юзер в числе тех, что есть в датасете, если мы не готовы работать с холодными
     if user_id > 10**9:
         raise UserNotFoundError(error_message=f"User {user_id} not found")
 
     k_recs = request.app.state.k_recs
-    reco = list(range(k_recs))
+    app_logger.info(f"k_recs: {k_recs}")
+    
+    if model_name == 'model_range':
+        reco = list(range(k_recs))
+    else:
+        reco = list(range(10, k_recs+10))
     return RecoResponse(user_id=user_id, items=reco)
 
 
