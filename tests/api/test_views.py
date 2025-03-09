@@ -57,7 +57,7 @@ def test_get_reco_invalid_model(
         response = client.get(path, headers=headers)
     assert response.status_code == HTTPStatus.NOT_FOUND
     data = response.json()
-    # Проверяем, что возвращаемое сообщение соответствует ошибке "Model not found"
+    # Проверка на ответ "Model not found"
     assert data["errors"][0]["error_message"] == "Model not found"
 
 
