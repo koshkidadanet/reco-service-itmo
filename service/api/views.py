@@ -1,19 +1,35 @@
 from typing import List
 
-from fastapi import APIRouter, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from service.api.exceptions import UserNotFoundError
 from service.log import app_logger
 from service.models import Error
 
+# Set auto_error=False so that missing auth is handled in our dependency
+security = HTTPBearer(auto_error=False)
+
+
+def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: Request = None,
+) -> None:
+    if not credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing or invalid Authorization header")
+    if request is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    if credentials.credentials != request.app.state.auth_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+
+router = APIRouter(dependencies=[Depends(verify_token)])
+
 
 class RecoResponse(BaseModel):
     user_id: int
     items: List[int]
-
-
-router = APIRouter()
 
 
 @router.get(

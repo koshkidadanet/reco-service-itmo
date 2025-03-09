@@ -49,26 +49,9 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
             return server_error([error])
 
 
-class BearerAuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        whitelisted_paths = ["/docs", "/openapi.json", "/redoc"]  # Разрешенные маршруты без аутентификации
-        if request.url.path in whitelisted_paths:
-            return await call_next(request)
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return JSONResponse(
-                status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Missing or invalid Authorization header"}
-            )
-        token = auth_header.split(" ")[1]
-        if token != request.app.state.auth_token:
-            return JSONResponse(status_code=status.HTTP_401_UNAUTHORIZED, content={"detail": "Invalid token"})
-        return await call_next(request)
-
-
 def add_middlewares(app: FastAPI) -> None:
     # do not change order
     app.add_middleware(ExceptionHandlerMiddleware)
-    app.add_middleware(BearerAuthMiddleware)
     app.add_middleware(AccessMiddleware)
     app.add_middleware(
         CORSMiddleware,
