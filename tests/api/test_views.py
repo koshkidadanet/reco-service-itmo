@@ -21,7 +21,8 @@ def test_get_reco_success(
     service_config: ServiceConfig,
 ) -> None:
     user_id = 123
-    path = GET_RECO_PATH.format(model_name="some_model", user_id=user_id)
+    # Changed model name to "model_range" as valid model
+    path = GET_RECO_PATH.format(model_name="model_range", user_id=user_id)
     headers = {"Authorization": f"Bearer {service_config.auth_token}"}
     with client:
         response = client.get(path, headers=headers)
@@ -43,6 +44,21 @@ def test_get_reco_for_unknown_user(
         response = client.get(path, headers=headers)
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()["errors"][0]["error_key"] == "user_not_found"
+
+
+def test_get_reco_invalid_model(
+    client: TestClient,
+    service_config: ServiceConfig,
+) -> None:
+    user_id = 123
+    path = GET_RECO_PATH.format(model_name="invalid_model", user_id=user_id)
+    headers = {"Authorization": f"Bearer {service_config.auth_token}"}
+    with client:
+        response = client.get(path, headers=headers)
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    data = response.json()
+    # Проверяем, что возвращаемое сообщение соответствует ошибке "Model not found"
+    assert data["errors"][0]["error_message"] == "Model not found"
 
 
 def test_missing_auth(

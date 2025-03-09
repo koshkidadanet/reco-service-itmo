@@ -44,7 +44,7 @@ async def health() -> str:
     path="/reco/{model_name}/{user_id}",
     tags=["Recommendations"],
     response_model=RecoResponse,
-    responses={404: {"model": List[Error], "description": "User not found"}},
+    responses={404: {"model": List[Error], "description": "User or model not found"}},
 )
 async def get_reco(
     request: Request,
@@ -53,7 +53,6 @@ async def get_reco(
 ) -> RecoResponse:
     app_logger.info(f"Request for model: {model_name}, user_id: {user_id}")
 
-    # Write your code here
     # Тут надо проверять, что юзер в числе тех, что есть в датасете, если мы не готовы работать с холодными
     if user_id > 10**9:
         raise UserNotFoundError(error_message=f"User {user_id} not found")
@@ -64,7 +63,8 @@ async def get_reco(
     if model_name == "model_range":
         reco = list(range(k_recs))
     else:
-        reco = list(range(10, k_recs + 10))
+        raise HTTPException(status_code=404, detail="Model not found")
+
     return RecoResponse(user_id=user_id, items=reco)
 
 
