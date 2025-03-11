@@ -14,8 +14,8 @@ class LogConfig(Config):
 class ServiceConfig(Config):
     service_name: str = "reco_service"
     k_recs: int = 10
-
     log_config: LogConfig
+    auth_token: str = "secret-token"
 
 
 def get_config() -> ServiceConfig:
