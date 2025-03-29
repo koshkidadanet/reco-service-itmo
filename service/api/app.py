@@ -1,5 +1,4 @@
 import asyncio
-import os
 from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Any, Dict
 
@@ -43,7 +42,7 @@ def create_app(config: ServiceConfig) -> FastAPI:
     try:
         model_path = "data/reco.parquet"
         app.state.reco_models["userknn_pop"] = pd.read_parquet(model_path, engine="pyarrow")
-        app_logger.info(f"Successfully loaded recommendations")
+        app_logger.info("Successfully loaded recommendations")
     except Exception as e:
         app_logger.error(f"Error loading recommendations: {e}")
 
