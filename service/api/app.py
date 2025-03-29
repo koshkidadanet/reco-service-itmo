@@ -43,7 +43,7 @@ def create_app(config: ServiceConfig) -> FastAPI:
         model_path = "data/reco.parquet"
         app.state.reco_models["userknn_pop"] = pd.read_parquet(model_path, engine="pyarrow")
         app_logger.info("Successfully loaded recommendations")
-    except Exception as e:
+    except (FileNotFoundError, pd.errors.ParserError, OSError) as e:
         app_logger.error(f"Error loading recommendations: {e}")
 
     add_views(app)
