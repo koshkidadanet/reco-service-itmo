@@ -81,7 +81,7 @@ async def get_reco(
             if user_id not in ds.user_id_map.external_ids:
                 # Fallback for unknown users
                 app_logger.warning(f"User {user_id} not found in LightFM model")
-                reco = [10440, 15297, 9728, 13865, 4151, 3734, 2657, 4880, 142, 6809]  # Top 10 popular
+                reco = [10440, 15297, 9728, 13865, 4151, 3734, 2657, 4880, 142, 6809]  # Top 10
             else:
                 user_interactions = interactions[interactions[Columns.User] == user_id][Columns.Item].values
 
@@ -92,7 +92,8 @@ async def get_reco(
                 # Get recommendations
                 nbrs = request.app.state.lightfm_index.knnQueryBatch(query_emb, k=k_recs + len(user_interactions))
 
-                # Convert to external IDs and filter out items the user has already interacted with
+                # Convert to external IDs and filter out items the user 
+                # has already interacted with
                 reco = ds.item_id_map.convert_to_external(nbrs[0][0])
                 reco = reco[np.isin(reco, user_interactions, invert=True)][:k_recs].tolist()
 
