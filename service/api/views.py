@@ -92,7 +92,7 @@ async def get_reco(
                 # Get recommendations
                 nbrs = request.app.state.lightfm_index.knnQueryBatch(query_emb, k=k_recs + len(user_interactions))
 
-                # Convert to ext IDs and filter out items the user has already inter
+                # Convert to ext IDs and filter items the user has already seen
                 reco = ds.item_id_map.convert_to_external(nbrs[0][0])
                 reco = reco[np.isin(reco, user_interactions, invert=True)][:k_recs].tolist()
 
