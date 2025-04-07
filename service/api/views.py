@@ -1,8 +1,10 @@
 from typing import List
 
+import numpy as np
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+from rectools import Columns
 
 from service.api.exceptions import UserNotFoundError
 from service.log import app_logger
@@ -63,6 +65,40 @@ async def get_reco(
 
     if model_name == "model_range":
         reco = list(range(k_recs))
+    elif model_name == "lightfm_4f":
+        if not all(
+            hasattr(request.app.state, attr)
+            for attr in ["lightfm_model", "lightfm_index", "dataset_with_features", "interactions", "user_embeddings"]
+        ):
+            raise HTTPException(status_code=500, detail="LightFM model not loaded properly")
+
+        try:
+            # Get user interactions
+            ds = request.app.state.dataset_with_features
+            interactions = request.app.state.interactions
+
+            # Check if user exists in the dataset
+            if user_id not in ds.user_id_map.external_ids:
+                # Fallback for unknown users
+                app_logger.warning(f"User {user_id} not found in LightFM model")
+                reco = [10440, 15297, 9728, 13865, 4151, 3734, 2657, 4880, 142, 6809]  # Top 10 popular
+            else:
+                user_interactions = interactions[interactions[Columns.User] == user_id][Columns.Item].values
+
+                # Get user embedding and query the index
+                user_idx = ds.user_id_map.convert_to_internal([user_id])[0]
+                query_emb = request.app.state.user_embeddings[user_idx].reshape(1, -1)
+
+                # Get recommendations
+                nbrs = request.app.state.lightfm_index.knnQueryBatch(query_emb, k=k_recs + len(user_interactions))
+
+                # Convert to external IDs and filter out items the user has already interacted with
+                reco = ds.item_id_map.convert_to_external(nbrs[0][0])
+                reco = reco[np.isin(reco, user_interactions, invert=True)][:k_recs].tolist()
+
+        except Exception as e:
+            app_logger.error(f"Error getting recommendations for user {user_id} with LightFM: {e}")
+            raise HTTPException(status_code=500, detail=f"Error getting recommendations: {str(e)}")
     elif model_name in request.app.state.reco_models:
         df = request.app.state.reco_models[model_name]
         user_data = df[df["user_id"] == user_id]

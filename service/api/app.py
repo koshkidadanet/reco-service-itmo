@@ -1,10 +1,14 @@
 import asyncio
+import pickle
 from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Any, Dict
 
+import nmslib
+import numpy as np
 import pandas as pd
 import uvloop
 from fastapi import FastAPI
+from rectools.models import LightFMWrapperModel
 
 from ..log import app_logger, setup_logging
 from ..settings import ServiceConfig
@@ -40,11 +44,30 @@ def create_app(config: ServiceConfig) -> FastAPI:
 
     app.state.reco_models = {}
     try:
-        model_path = "data/reco.parquet"
+        model_path = "artifacts/reco.parquet"
         app.state.reco_models["userknn_pop"] = pd.read_parquet(model_path, engine="pyarrow")
-        app_logger.info("Successfully loaded recommendations")
+        app_logger.info("Successfully loaded userknn_pop")
     except (FileNotFoundError, pd.errors.ParserError, OSError) as e:
-        app_logger.error(f"Error loading recommendations: {e}")
+        app_logger.error(f"Error loading userknn_pop: {e}")
+
+    try:
+        app.state.lightfm_model = LightFMWrapperModel.load("artifacts/ligftfm_4f")
+
+        app.state.lightfm_index = nmslib.init(method="hnsw", space="cosinesimil")
+        app.state.lightfm_index.loadIndex("artifacts/ligftfm_4f__hnsw_index")
+
+        with open("artifacts/dataset_with_features", "rb") as f:
+            app.state.dataset_with_features = pickle.load(f)
+
+        app.state.interactions = app.state.dataset_with_features.get_raw_interactions()
+
+        user_embeddings, _ = app.state.lightfm_model.get_vectors(app.state.dataset_with_features)
+        extra_zero = np.zeros((user_embeddings.shape[0], 1))
+        app.state.user_embeddings = np.append(user_embeddings, extra_zero, axis=1)
+
+        app_logger.info("Successfully loaded lightfm model and components")
+    except Exception as e:
+        app_logger.error(f"Error loading lightfm model: {e}")
 
     add_views(app)
     add_middlewares(app)
