@@ -53,7 +53,9 @@ def create_app(config: ServiceConfig) -> FastAPI:
     try:
         app.state.lightfm_model = LightFMWrapperModel.load("artifacts/ligftfm_4f")
 
-        app.state.lightfm_index = nmslib.init(method="hnsw", space="cosinesimil")
+        app.state.lightfm_index = nmslib.init(  # pylint: disable=I1101
+            method="hnsw", space="cosinesimil"
+        )
         app.state.lightfm_index.loadIndex("artifacts/ligftfm_4f__hnsw_index")
 
         with open("artifacts/dataset_with_features", "rb") as f:
@@ -66,7 +68,7 @@ def create_app(config: ServiceConfig) -> FastAPI:
         app.state.user_embeddings = np.append(user_embeddings, extra_zero, axis=1)
 
         app_logger.info("Successfully loaded lightfm model and components")
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         app_logger.error(f"Error loading lightfm model: {e}")
 
     add_views(app)

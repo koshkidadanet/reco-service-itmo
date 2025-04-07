@@ -76,8 +76,7 @@ def _get_reco_default(request: Request, user_id: int, model_name: str) -> List[i
     user_data = df[df["user_id"] == user_id]
     if user_data.empty:
         return df[df["user_id"] == -9999]["item_id"].values.tolist()
-    else:
-        return user_data["item_id"].values.tolist()
+    return user_data["item_id"].values.tolist()
 
 
 @router.get(
