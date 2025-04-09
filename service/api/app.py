@@ -2,6 +2,7 @@ import asyncio
 from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Any, Dict
 
+import pandas as pd
 import uvloop
 from fastapi import FastAPI
 
@@ -36,6 +37,14 @@ def create_app(config: ServiceConfig) -> FastAPI:
     app = FastAPI(debug=False)
     app.state.k_recs = config.k_recs
     app.state.auth_token = config.auth_token
+
+    app.state.reco_models = {}
+    try:
+        model_path = "data/reco.parquet"
+        app.state.reco_models["userknn_pop"] = pd.read_parquet(model_path, engine="pyarrow")
+        app_logger.info("Successfully loaded recommendations")
+    except (FileNotFoundError, pd.errors.ParserError, OSError) as e:
+        app_logger.error(f"Error loading recommendations: {e}")
 
     add_views(app)
     add_middlewares(app)

@@ -63,6 +63,13 @@ async def get_reco(
 
     if model_name == "model_range":
         reco = list(range(k_recs))
+    elif model_name in request.app.state.reco_models:
+        df = request.app.state.reco_models[model_name]
+        user_data = df[df["user_id"] == user_id]
+        if user_data.empty:
+            reco = df[df["user_id"] == -9999]["item_id"].values.tolist()
+        else:
+            reco = user_data["item_id"].values.tolist()
     else:
         raise HTTPException(status_code=404, detail="Model not found")
 

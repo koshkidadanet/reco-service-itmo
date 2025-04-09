@@ -1,4 +1,5 @@
 VENV := .venv
+PYTHON := python3.9
 
 PROJECT := service
 TESTS := tests
@@ -9,7 +10,7 @@ CONTAINER_NAME := reco_service
 # Prepare
 
 .venv:
-	poetry env use python3.9
+	poetry env use $(PYTHON)
 	poetry install --no-root
 	poetry check
 
