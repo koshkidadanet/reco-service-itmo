@@ -2,7 +2,6 @@ import asyncio
 from concurrent.futures.thread import ThreadPoolExecutor
 from typing import Any, Dict
 
-import pandas as pd
 import uvloop
 from fastapi import FastAPI
 
@@ -10,6 +9,7 @@ from ..log import app_logger, setup_logging
 from ..settings import ServiceConfig
 from .exception_handlers import add_exception_handlers
 from .middlewares import add_middlewares
+from .recommendation_models import LightFMModel, PopularModel, RangeModel, UserKnnPopModel
 from .views import add_views
 
 __all__ = ("create_app",)
@@ -38,13 +38,16 @@ def create_app(config: ServiceConfig) -> FastAPI:
     app.state.k_recs = config.k_recs
     app.state.auth_token = config.auth_token
 
-    app.state.reco_models = {}
-    try:
-        model_path = "data/reco.parquet"
-        app.state.reco_models["userknn_pop"] = pd.read_parquet(model_path, engine="pyarrow")
-        app_logger.info("Successfully loaded recommendations")
-    except (FileNotFoundError, pd.errors.ParserError, OSError) as e:
-        app_logger.error(f"Error loading recommendations: {e}")
+    # Initialize all model classes with logger
+    models = {
+        "userknn_pop": UserKnnPopModel(logger=app_logger),
+        "lightfm_4f": LightFMModel(logger=app_logger),
+        "model_range": RangeModel(logger=app_logger),
+        "model_pop": PopularModel(logger=app_logger),
+    }
+
+    # Store models in app.state
+    app.state.reco_models = models
 
     add_views(app)
     add_middlewares(app)

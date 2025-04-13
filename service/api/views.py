@@ -8,7 +8,6 @@ from service.api.exceptions import UserNotFoundError
 from service.log import app_logger
 from service.models import Error
 
-# Set auto_error=False so that missing auth is handled in our dependency
 security = HTTPBearer(auto_error=False)
 
 
@@ -53,26 +52,17 @@ async def get_reco(
 ) -> RecoResponse:
     app_logger.info(f"Request for model: {model_name}, user_id: {user_id}")
 
-    # Тут надо проверять, что юзер в числе тех, что есть в датасете,
-    # если мы не готовы работать с холодными
     if user_id > 10**9:
         raise UserNotFoundError(error_message=f"User {user_id} not found")
 
     k_recs = request.app.state.k_recs
     app_logger.info(f"k_recs: {k_recs}")
 
-    if model_name == "model_range":
-        reco = list(range(k_recs))
-    elif model_name in request.app.state.reco_models:
-        df = request.app.state.reco_models[model_name]
-        user_data = df[df["user_id"] == user_id]
-        if user_data.empty:
-            reco = df[df["user_id"] == -9999]["item_id"].values.tolist()
-        else:
-            reco = user_data["item_id"].values.tolist()
+    if model_name in request.app.state.reco_models:
+        model = request.app.state.reco_models[model_name]
+        reco = model.recommend(user_id, k_recs)
     else:
         raise HTTPException(status_code=404, detail="Model not found")
-
     return RecoResponse(user_id=user_id, items=reco)
 
 
