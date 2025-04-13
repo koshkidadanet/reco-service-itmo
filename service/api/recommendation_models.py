@@ -133,4 +133,3 @@ class RangeModel:
         if self.logger:
             self.logger.debug(f"Generating range recommendations for user {user_id} with k={k_recs}")
         return list(range(k_recs))
-    
