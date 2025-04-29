@@ -1,3 +1,4 @@
+import json
 import logging
 import pickle
 from typing import Any, List, Optional
@@ -5,6 +6,7 @@ from typing import Any, List, Optional
 import nmslib
 import numpy as np
 import pandas as pd
+import torch
 from rectools.columns import Columns
 from rectools.models import LightFMWrapperModel
 
@@ -133,3 +135,142 @@ class RangeModel:
         if self.logger:
             self.logger.debug(f"Generating range recommendations for user {user_id} with k={k_recs}")
         return list(range(k_recs))
+
+
+class DSSMModel:
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        self.logger = logger
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.k_recs_default = 10
+
+        self.N_FACTORS = 128
+        self.ITEM_MODEL_SHAPE = [842]
+        self.USER_META_MODEL_SHAPE = [16]
+        self.USER_INTERACTION_MODEL_SHAPE = [12320]
+
+        self.i2v = None
+        self.u2v = None
+        self.item_id_to_iid = None
+        self.user_id_to_uid = None
+        self.iid_to_item_id = None
+        self.uid_to_user_id = None
+        self.interactions = None
+        self.index = None
+        self.users_vec = None
+
+        self._load_model()
+
+    def _load_model(self) -> None:
+        class ItemModel(torch.nn.Module):
+            def __init__(inner_self, n_factors=self.N_FACTORS, dropout=0.2):
+                super(ItemModel, inner_self).__init__()
+                inner_self.fc1 = torch.nn.Linear(self.ITEM_MODEL_SHAPE[0], n_factors)
+                inner_self.ln1 = torch.nn.LayerNorm(n_factors)
+                inner_self.fc2 = torch.nn.Linear(n_factors, n_factors)
+                inner_self.dropout = torch.nn.Dropout(dropout)
+                inner_self.fc3 = torch.nn.Linear(n_factors, n_factors)
+
+            def forward(inner_self, x):
+                x = torch.relu(inner_self.ln1(inner_self.fc1(x)))
+                x = inner_self.dropout(x)
+                x = torch.relu(inner_self.fc2(x))
+                x = x + torch.relu(inner_self.fc2(x))
+                x = inner_self.fc3(x)
+                x = torch.nn.functional.normalize(x, p=2, dim=1)
+                return x
+
+        class UserModel(torch.nn.Module):
+            def __init__(inner_self, n_factors=self.N_FACTORS, dropout=0.2):
+                super(UserModel, inner_self).__init__()
+                inner_self.fc1_meta = torch.nn.Linear(self.USER_META_MODEL_SHAPE[0], n_factors)
+                inner_self.ln_meta = torch.nn.LayerNorm(n_factors)
+                inner_self.fc2_meta = torch.nn.Linear(n_factors, n_factors)
+                inner_self.dropout = torch.nn.Dropout(dropout)
+                inner_self.fc1_interaction = torch.nn.Linear(self.USER_INTERACTION_MODEL_SHAPE[0], n_factors)
+                inner_self.ln_inter = torch.nn.LayerNorm(n_factors)
+                inner_self.fc2_inter = torch.nn.Linear(n_factors, n_factors)
+                inner_self.fc3 = torch.nn.Linear(n_factors * 2, n_factors)
+
+            def forward(inner_self, meta, interaction):
+                meta = torch.relu(inner_self.ln_meta(inner_self.fc1_meta(meta)))
+                meta = inner_self.dropout(meta)
+                meta = torch.relu(inner_self.fc2_meta(meta))
+                meta = meta + torch.relu(inner_self.fc2_meta(meta))
+                interaction = torch.relu(inner_self.ln_inter(inner_self.fc1_interaction(interaction)))
+                interaction = inner_self.dropout(interaction)
+                interaction = torch.relu(inner_self.fc2_inter(interaction))
+                x = torch.cat([meta, interaction], dim=1)
+                x = inner_self.fc3(x)
+                x = torch.nn.functional.normalize(x, p=2, dim=1)
+                return x
+
+        try:
+            self.i2v = ItemModel().to(self.device)
+            self.i2v.load_state_dict(torch.load("artifacts/i2v_model_bpr_loss_norm_full", map_location=self.device))
+            self.i2v.eval()
+
+            self.u2v = UserModel().to(self.device)
+            self.u2v.load_state_dict(torch.load("artifacts/u2v_model_bpr_loss_norm_full", map_location=self.device))
+            self.u2v.eval()
+
+            with open("artifacts/item_id_to_iid.json", "r") as f:
+                self.item_id_to_iid = json.load(f)
+            with open("artifacts/user_id_to_uid.json", "r") as f:
+                self.user_id_to_uid = json.load(f)
+            with open("artifacts/iid_to_item_id.json", "r") as f:
+                self.iid_to_item_id = json.load(f)
+            with open("artifacts/uid_to_user_id.json", "r") as f:
+                self.uid_to_user_id = json.load(f)
+
+            self.item_id_to_iid = {int(k): v for k, v in self.item_id_to_iid.items()}
+            self.user_id_to_uid = {int(k): v for k, v in self.user_id_to_uid.items()}
+            self.iid_to_item_id = {int(k): v for k, v in self.iid_to_item_id.items()}
+            self.uid_to_user_id = {int(k): v for k, v in self.uid_to_user_id.items()}
+
+            self.interactions = pd.read_parquet("artifacts/interactions.parquet")
+
+            self.index = nmslib.init(method="hnsw", space="cosinesimil")
+            self.index.loadIndex("artifacts/bpr_loss_norm__hnsw_index")
+
+            self.users_vec = np.load("artifacts/users_vec.npy")
+
+            if self.logger:
+                self.logger.info("Successfully loaded DSSM model and data")
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"Error loading DSSM model: {e}")
+
+    def _is_model_ready(self) -> bool:
+        return (
+            self.i2v is not None
+            and self.u2v is not None
+            and self.item_id_to_iid is not None
+            and self.user_id_to_uid is not None
+            and self.iid_to_item_id is not None
+            and self.uid_to_user_id is not None
+            and self.interactions is not None
+            and self.index is not None
+            and self.users_vec is not None
+        )
+
+    def recommend(self, user_id: int, k_recs: int) -> List[int]:
+        if not self._is_model_ready():
+            if self.logger:
+                self.logger.warning("DSSM model components are missing, returning popular items")
+            return POPULAR_ITEMS[: self.k_recs_default]
+        # Если пользователь неизвестен — возвращаем популярные
+        if user_id not in self.user_id_to_uid:
+            if self.logger:
+                self.logger.warning(f"User {user_id} not found in DSSM model, returning popular items")
+            return POPULAR_ITEMS[: self.k_recs_default]
+
+        uid = self.user_id_to_uid[user_id]
+        user_interactions = self.interactions[self.interactions["user_id"] == user_id]["item_id"].values
+        user_vec = self.users_vec[uid]
+        user_vec = np.atleast_2d(user_vec)  # Ensure 2D shape for nmslib
+        nbrs = self.index.knnQueryBatch(user_vec, k=k_recs + len(user_interactions))
+
+        reco_temp = np.array([self.iid_to_item_id.get(x, x) for x in nbrs[0][0]])
+        reco = np.array([reco_temp]) if isinstance(reco_temp, int) else np.array(reco_temp)
+        reco = reco[np.isin(reco, user_interactions, invert=True)][:k_recs].tolist()
+        return reco

@@ -9,7 +9,7 @@ from ..log import app_logger, setup_logging
 from ..settings import ServiceConfig
 from .exception_handlers import add_exception_handlers
 from .middlewares import add_middlewares
-from .recommendation_models import LightFMModel, PopularModel, RangeModel, UserKnnPopModel
+from .recommendation_models import DSSMModel, LightFMModel, PopularModel, RangeModel, UserKnnPopModel
 from .views import add_views
 
 __all__ = ("create_app",)
@@ -40,10 +40,11 @@ def create_app(config: ServiceConfig) -> FastAPI:
 
     # Initialize all model classes with logger
     models = {
-        "userknn_pop": UserKnnPopModel(logger=app_logger),
-        "lightfm_4f": LightFMModel(logger=app_logger),
+        # "userknn_pop": UserKnnPopModel(logger=app_logger),
+        # "lightfm_4f": LightFMModel(logger=app_logger),
         "model_range": RangeModel(logger=app_logger),
-        "model_pop": PopularModel(logger=app_logger),
+        # "model_pop": PopularModel(logger=app_logger),
+        # "model_dssm": DSSMModel(logger=app_logger),
     }
 
     # Store models in app.state
