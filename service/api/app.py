@@ -40,11 +40,11 @@ def create_app(config: ServiceConfig) -> FastAPI:
 
     # Initialize all model classes with logger
     models = {
-        # "userknn_pop": UserKnnPopModel(logger=app_logger),
-        # "lightfm_4f": LightFMModel(logger=app_logger),
+        "userknn_pop": UserKnnPopModel(logger=app_logger),
+        "lightfm_4f": LightFMModel(logger=app_logger),
         "model_range": RangeModel(logger=app_logger),
-        # "model_pop": PopularModel(logger=app_logger),
-        # "model_dssm": DSSMModel(logger=app_logger),
+        "model_pop": PopularModel(logger=app_logger),
+        "model_dssm": DSSMModel(logger=app_logger),
     }
 
     # Store models in app.state
