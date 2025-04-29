@@ -69,7 +69,7 @@ class LightFMModel:
         try:
             self.model = LightFMWrapperModel.load("artifacts/ligftfm_4f")
 
-            self.index = nmslib.init(method="hnsw", space="cosinesimil")  # pylint: disable=c-extension-no-member
+            self.index = nmslib.init(method="hnsw", space="cosinesimil")
             if self.index is not None:
                 self.index.loadIndex("artifacts/ligftfm_4f__hnsw_index")
 
